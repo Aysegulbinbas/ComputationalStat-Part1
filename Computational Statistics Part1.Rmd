@@ -1,0 +1,292 @@
+---
+title: "Computational Statistics Part1"
+author: "AyşegülBinbaş"
+date: "5/17/2021"
+output:
+  pdf_document: default
+  word_document: default
+  html_document:
+    df_print: paged
+---
+
+
+
+#Generate the random samples
+```{r}
+#6 lottery numbers
+lottery = runif(6,0,9)
+round(lottery,0)
+
+# or 
+lottery <- function(n) {
+  
+  S <- replicate(sort.int(sample(1:60, 6, repl = F)), n = n)
+  while(d <- anyDuplicated(S, MARGIN = 2)) {
+    S <- cbind(S[, -d], sort.int(sample(1:60, 6, repl = F)))
+  }
+  print(S)
+}
+
+
+# A multinomial distribution of size 100, having probabilities 0.1, 0.4, 0.5
+rmultinom(1, size = 100, prob = c(0.1,0.4,0.5))
+```
+
+# Generate a random sample of size 1000 from the Beta(3,2) distribution
+
+```{r}
+
+function3=function(n,a,b){
+  u=rgamma(n,a,1)
+  v=rgamma(n,b,1)
+  x=u/(u+v)
+# histogram of the sample with the theoretical Beta(3,2) density superimposed
+# For histogram :
+ # hist(x,prob=T,main = "Beta distribution (3,2)",col = "coral")
+  #y=seq(0,max(x),0.01)
+  #lines(y,dbeta(y,3,2),col="red",lwd=2.5)
+  summary(x)
+  
+  
+}
+
+n = 1000
+a = 3
+b= 2
+
+function3(1000,3,2)
+```
+
+
+# Monte Carlo method
+
+```{r}
+
+#apply antithetic variable and control variate approaches
+#antithetic variable approach
+f<-function(x) exp(x)
+x<-runif(n,a,b)
+n<-100000
+a<-0
+b<-1
+
+exp.est<-mean(sapply(x,f))*(b-a)
+exp.est
+var.est<-mean(sapply(x,f)^2)-(mean(sapply(x,f)))^2
+var.est
+
+integrate(f,a,b)$value
+
+f<-function(x)exp(x)
+x<-runif(n/2,a,b)
+n<-100000
+a<-0
+b<-1
+
+theta1<-mean(sapply(x,f))*(b-a)
+theta2<-mean(sapply(b-x,f))*(b-a)
+exp.est.ant<-(theta1+theta2)/2
+exp.est.ant
+
+z1<-f(x)
+z2<-f(b-x)
+var.est.ant<-(var(z1)+var(z2)+2*cov(z1,z2))/4
+var.est.ant
+
+
+result<-matrix(c(exp.est,exp.est.ant,var.est,var.est.ant),
+               nrow=2,
+               dimnames = list(c("classical approach","antithetic variables"),
+                               c("estimated mean","variance")))
+print(result)
+
+var_reduction<-100*(var.est-var.est.ant)/(var.est)
+var_reduction
+
+cat("the antithetic variable approach achieved",
+    round(var_reduction,2), "%", "reduction in variance.")
+
+
+
+#control variate approach
+
+f<-function(x)exp(x)
+x<-runif(n,a,b)
+n<-100000
+a<-0
+b<-1
+exp.est1<-mean(sapply(x,f))*(b-a)
+exp.est1
+var.est1<-mean(sapply(x,f)^2)-(mean(sapply(x,f)))^2
+var.est1
+integrate(f,a,b)$value
+
+
+x<-runif(n,a,b)
+n<-100000
+a<-0
+b<-1
+g.cont<-function(x)exp(x)
+f.cont<-function(x)1/exp(x)
+cor(g.cont(x),f.cont(x))
+
+c_star<- -cov(g.cont(x),f.cont(x))/var(f.cont(x))
+c_star
+
+
+expected.function<-integrate(f.cont,a,b)$value
+
+exp.cont.estimate <- mean(g.cont(x)+c_star*(f.cont(x)-expected.function))*(b-a)
+exp.cont.estimate
+var.cont.estimate<-var(g.cont(x)+c_star*(f.cont(x)-expected.function))
+var.cont.estimate
+
+result1<-matrix(c(exp.est1,exp.cont.estimate,var.est1,var.cont.estimate),
+                nrow = 2,
+                dimnames = list(c("classical approach","control variates"),
+                                c("estimated mean","variance")))
+print(result1)
+
+
+var_reduction1<-100*(var.est1-var.cont.estimate)/var.est1
+var_reduction1
+cat("the control variates approach achieved",
+    round(var_reduction1,2),"%","reduction in variance.")
+
+```
+
+
+#Critical value approach
+#P-value approach
+```{r}
+
+travel_time_CI <- function( M, alpha){
+  # we are assuming that the population has a normal shape
+  
+  mu <- 45
+  sigma <- 15
+  storage <- matrix(0, nrow = M, ncol = 2, dimnames = list(c(1:M),c("Lower","Upper")))
+  
+  for(i in 1:M){
+    x <- rnorm(n,mu,sigma)
+    x_bar <- mean(x)
+    x_sd <- sd(x)
+    storage[i,1] <- x_bar - qnorm(1-alpha) * (x_sd/sqrt(n))
+    storage[i,2] <- x_bar + qnorm(1-alpha) * (x_sd/sqrt(n))
+  }
+  out <- list(CI = apply(storage,2,mean), conf_level = 1-alpha) #mean of rows
+  return(out)
+}
+
+M <- 10^5
+alpha <- 0.05
+
+
+#travel_time_CI( 10^5, 0.05)
+
+
+```
+
+
+
+
+```{r}
+ #parta
+
+function_six <- function(mean_patient,Mu0, sigma, M, alpha,n){
+  S.Error <- (sigma / sqrt(n))
+  test.stat <- (mean_patient-Mu0) / S.Error
+  
+  TestScores <- numeric(M)
+  
+  for(i in 1:M){
+    x <- rnorm(n, Mu0, sigma) # generate random sample under H0
+    TestScores[i] <- (mean(x) - Mu0) / S.Error
+  }
+  # Get the critical value for alpha
+  Critical.Value <- quantile(TestScores,(1-(alpha/2)))
+  
+  if(abs(test.stat) > abs(Critical.Value)){
+    cat("From MC Simulation we get an estimated Critical Value of", 
+        round(Critical.Value,3),"\n", "Test Statistic is", 
+        round(test.stat,3),"\n","\n",
+        "Therefore, we have enough evidence to reject the null hypothesis",
+        "\n","\n")
+  }else{
+    cat("From MC Simulation we get an estimated Critical Value of", 
+        round(Critical.Value,3),"\n", "Test Statistic is",
+        round(test.stat,3),"\n",
+        "Therefore, we do not have enough evidence to reject the null hypothesis",
+        "\n","\n")
+  }
+  
+  #a <- seq(-sigma,sigma,0.01)
+  #plot(a, dnorm(a), type = "l",lwd = 2.5, ylab = "", xlab = "")
+  #abline(h=0, lwd = 2.5)
+  #abline(v = Critical.Value, col = "Red")
+  #abline(v = test.stat, col = "Dark Blue")
+  #points(x = Critical.Value, y = 0, pch = 1, cex = 2, col = "Red")
+  #points(x = test.stat, y = 0, pch = 2, cex = 2, col = "Dark Blue")
+  #legend("topright",legend = c("Critical Value","Test Stat"), 
+#         col = c("Red","Dark Blue"), pch = 1:2)
+  
+  return(list(test_stat = test.stat,
+              Critical_Value = as.numeric(Critical.Value)))
+}
+
+M <- 10^5
+alpha <- 0.05
+Mu0 <- 110
+sigma <- 15
+mean_patient=100
+n=40
+
+function_six(100,110,15,100000,0.05,40)
+
+```
+
+
+```{r}
+#  partb
+pvalue_approach <- function(mean_patient,Mu0, sigma, M, alpha,n){
+  
+  
+  S.Error <- (sigma / sqrt(n))
+  test.stat <- (mean_patient-Mu0) / S.Error
+  
+  TestScores <- numeric(M)
+  
+  for(i in 1:M){
+    x <- rnorm(n, Mu0, sigma) # generate random sample under H0
+    TestScores[i] <- (mean_patient - Mu0) / S.Error
+  }
+  
+  pvalue <- length(which(TestScores >= test.stat))/M
+  
+  if(pvalue < alpha){
+    cat("Since P-value",pvalue,"which is less than the significance level",
+        alpha, "\n",
+        "Therefore, we can reject the null hypothesis.","\n","\n")
+  }else{
+    cat("Since P-value",pvalue,
+        "which is greater than the significance level",
+        alpha, "\n",
+        "Therefore, we can not reject the null hypothesis.",
+        "\n","\n")
+  }
+  return(list(P_Value = pvalue)) #return to p-value
+}
+
+
+M <- 10^5
+alpha <- 0.05
+Mu0 <- 110
+sigma <- 15
+mean_patient=100
+n=40
+
+
+pvalue_approach(100,110,15,10^5,0.05,40)
+
+```
+
